@@ -10,14 +10,21 @@
 
 void sig_handler(int sig)
 {
-	if(sig==SIGINT)
-		printf("This is a special signal handler for SIGINT\n");
+	if(sig==SIGINT){
+		printf("\nPROCESS INTERRUPTED!\n");
+		printf("---------------------------\n");
+		fflush(stdout);
+		_exit(1);
+	}
 }
 void child_process(int id, int readpipefds)
 {
 	char message[BUFF_SIZE];
-	read(readpipefds,message,sizeof(message)-1);
+	ssize_t n = read(readpipefds,message,sizeof(message)-1);
+	if(n<0){perror("read"); exit(1);}
+	message[n]='\0';
 	printf("Child %d received \"%s\"\n",id, message);
+	printf("\n----------------------------------\n");
 	close(readpipefds);
 	exit(0);
 }
@@ -28,16 +35,25 @@ int main(void){
 	int numchild;
 
 	signal(SIGINT, sig_handler);
+	if(signal(SIGINT,sig_handler)==SIG_ERR){
+		perror("signal");
+		exit(1);
+	}
 
 	printf("How many child: ");
 	scanf("%d%*c", &numchild);
+	printf("\n==================================");
 
-	printf("Parent process: Type a message: ");
+	printf("\nParent process: Type a message: ");
 	fflush(stdout);
 	fgets(message,BUFF_SIZE,stdin);
 	message[strcspn(message, "\n")] = '\0';
+	printf("\n----------------------------------");
 	for(int i=0; i<numchild; i++){
-		pipe(pipefds);
+		if(pipe(pipefds)==-1){
+			perror("pipe");
+			exit(1);
+		}
 		fflush(stdout);
 		pid = fork();
 		if(pid<0){
@@ -49,13 +65,11 @@ int main(void){
 			child_process(i+1, pipefds[0]);
 		}
 		close(pipefds[0]);
-		printf("Parent sent \"%s\" to child %d\n", message, i+1);
+		printf("\nParent sent \"%s\" to child %d\n", message, i+1);
 		write(pipefds[1], message, strlen(message)+1);
 		close(pipefds[1]);
 		wait(NULL);
 	}
-	for(int j=0; j<numchild; j++){
-		wait(NULL);
-	}
+	printf("All child has received message.\n");
 	return 0;
 }
